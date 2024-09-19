@@ -1,0 +1,274 @@
+use bevy::{prelude::*, ecs::prelude::Commands};
+use bevy_flycam::prelude::*;
+use bevy_atmosphere::prelude::*;
+use noise::{NoiseFn, Perlin, Seedable};
+use std::collections::HashMap;
+use std::collections::HashSet;
+use pixelate_mesh::prelude::*;
+
+mod day_night;
+use crate::day_night::day_night_plugin;
+
+
+#[bevy_main]
+fn main() {
+    App::new()
+        .add_plugins((
+                DefaultPlugins, 
+                NoCameraPlayerPlugin, 
+                AtmospherePlugin, 
+                day_night_plugin,
+                ))
+        .insert_resource(MovementSettings {
+            sensitivity: 0.00006,
+            speed: 12.0,
+        })
+        //.add_plugins(PixelateMeshPlugin::<MainCamera>::default())
+        .add_systems(Startup, (setup))
+        .add_systems(Update, (render_chunks))
+        .run();
+}
+
+#[derive(Resource)]
+struct VoxelWorld {
+    chunks: HashMap<(i32, i32, i32), bool>
+}
+
+impl VoxelWorld {
+    fn new() -> Self {
+        let mut chunks = HashMap::new();
+
+        // Initialize all voxels in the range (-16 to 16 in each dimension) to false
+        for x in -16..=16 {
+            for y in -16..=16 {
+                for z in -16..=16 {
+                    chunks.insert((x, y, z), false);
+                }
+            }
+        }
+
+        VoxelWorld { chunks }    
+    }
+    // Set a voxel at a given (x, y, z) position
+    fn set_voxel(&mut self, x: i32, y: i32, z: i32, value: bool) {
+        self.chunks.insert((x, y, z), value);
+    }
+
+    // Get a voxel at a given (x, y, z) position
+    fn get_voxel(&self, x: i32, y: i32, z: i32) -> Option<&bool> {
+        self.chunks.get(&(x, y, z))
+    }
+}
+
+
+#[derive(Component)]
+struct Chunk{
+    position: Vec3,
+}
+
+#[derive(Component)]
+struct Cube;
+
+#[derive(Component)]
+struct Player;
+
+#[derive(Component)]
+struct MainCamera;
+
+fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
+    
+    // spawns the main camera
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_xyz(0.0, 2.0, 0.5),
+            ..default()
+        },
+        AtmosphereCamera::default(),
+        FlyCam,
+        Player,
+        MainCamera,
+
+    ));
+
+    // spawns a directional light
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            color: Color::WHITE,
+            illuminance: 10000.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        transform: Transform::from_xyz(5.0, 10.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
+    
+
+    let perlin = Perlin::new(1);
+    let scale = 0.2;
+    // debug ==> spawns a random chunk 
+    let mut voxel: [[[bool; 16]; 16]; 16] = [[[false; 16]; 16]; 16];
+    for i in 0..16 {
+        for j in 0..16 {
+            for k in 0..16 { 
+                let val = perlin.get([i as f64 * scale, j as f64 * scale, k as f64 * scale]);
+                voxel[i][j][k] = val >= 0.0; 
+            }
+        }
+    }
+    //spawn_cubes(voxel, [0.0,0.0,0.0], commands, meshes, materials);
+} 
+
+
+
+fn spawn_cubes(voxels: [[[bool; 16]; 16]; 16], position: [f32; 3], mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
+    let chunk_entity = commands.spawn((
+        Chunk {
+            position: Vec3::new(position[0], position[1], position[2]),
+        },
+        SpatialBundle {..default()}
+    )).id();
+ 
+    for i in 0..15 {
+        for j in 0..15 {
+            for k in 0..15 {
+                if voxels[i][j][k] == true {
+                    let cube = commands.spawn(( 
+                            PbrBundle {
+                                mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+                                transform: Transform::from_xyz(
+                                    i as f32 + position[0] - 7.0,
+                                    j as f32 + position[1] - 7.0,
+                                    k as f32 + position[2] - 7.0,
+                                    ),
+                                material: materials.add(Color::WHITE),
+                                ..default()
+                            }, Cube, )).id();
+                    commands.entity(chunk_entity).push_children(&[cube]);
+                };
+            }
+        }
+    }
+}
+
+fn render_chunks(
+        mut commands: Commands,
+        mut meshes: ResMut<Assets<Mesh>>, 
+        mut materials: ResMut<Assets<StandardMaterial>>,        
+        player_query: Query<&Transform, With<Player>>,
+        chunk_query: Query<(Entity, &Chunk, &Transform)>,
+    ) {
+        let player_transform = player_query.single();
+        let x: isize = player_transform.translation[0] as isize / 16;
+        let y: isize = player_transform.translation[1] as isize / 16;
+        let z: isize = player_transform.translation[2] as isize / 16;
+
+        let mut voxel_world = VoxelWorld::new();
+
+
+        let mut debug_count = 0;
+
+        // Collect existing chunks into a HashSet for quick lookup
+        let mut existing_chunks = HashSet::new();
+        for (_, chunk, transform) in chunk_query.iter() {
+            let chunk_pos = (
+                (transform.translation.x / 16.0).round() as isize,
+                (transform.translation.y / 16.0).round() as isize,
+                (transform.translation.z / 16.0).round() as isize,
+            );
+            existing_chunks.insert(chunk_pos);
+            debug_count += 1;
+        }
+        println!("{}", debug_count);
+
+        // iterate through the nearby world and spawn non-exising chunks 
+        for i in (x - 2)..(x + 2) {
+            for j in (y - 2)..(y + 2) {
+                for k in (z - 2)..(z + 2) {
+                    
+                    
+                    if !existing_chunks.contains(&(i, j, k)) {
+                        //println!("Spawning chunk at {i}, {j}, {k}");
+                        voxel_world.set_voxel(i as i32, j as i32, k as i32, true);
+                        let chunk_entity = commands.spawn((
+                            Chunk {
+                                position: Vec3::new(i as f32 * 16.0, j as f32 * 16.0, k as f32 * 16.0),
+                            },
+                            SpatialBundle{..default()},
+                            
+                        )).id();
+                    
+                    let cube = commands.spawn((
+                            PbrBundle {
+                                mesh: meshes.add(Cuboid::new(14.0, 1.0, 14.0)),
+                                transform: Transform::from_xyz(
+                                    (i as f32 * 16.0),
+                                    (j as f32 * 16.0), 
+                                    (k as f32 * 16.0),
+                                    ),
+                                material: materials.add(Color::WHITE),
+                                ..default()
+                            },
+                            Cube,
+                    )).id();
+                    commands.entity(chunk_entity).push_children(&[cube]);
+                    }
+
+                    /*
+                    for (chunk_entity, chunk, transform) in chunk_query.iter() {
+                        let chunk_pos = transform.translation;
+                        
+                        if (chunk_pos.x as i32 == i as i32) && (chunk_pos.y as i32 == j as i32) && (chunk_pos.z as i32 == k as i32) {
+                            exists = true;
+                        }  
+                    }
+                    if !exists {
+                        println!("Shouldnt happen much!");
+                        let chunk_entity = commands.spawn((
+                        Chunk {
+                            position: Vec3::new(i as f32, j as f32, k as f32),
+                        },
+                            SpatialBundle {..default()}
+                        )).id();
+
+
+                        for a in 0..15 {
+                            for b in 0..15 {
+                                for c in 0..15 {
+                                    let perlin = Perlin::new(1);
+                                    let scale = 0.2;
+
+                                    if perlin.get([i as f64 * scale, j as f64 * scale, k as f64 * scale]) >= 0.0 {
+                                        let cube = commands.spawn((
+                                                PbrBundle {
+                                                    mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+                                                    transform: Transform::from_xyz(
+                                                        a as f32 + i as f32 - 7.0,
+                                                        b as f32 + j as f32 - 7.0,
+                                                        c as f32 + k as f32 - 7.0,
+                                                        ),
+                                                    material: materials.add(Color::WHITE),
+                                                    ..default()
+                                                }, Cube)).id();
+                                        commands.entity(chunk_entity).push_children(&[cube]);
+                                    };
+                                }
+                            }
+                        }
+                    
+                    } */
+                }
+
+            }
+        }
+         
+        for (chunk_entity, chunk, transform) in chunk_query.iter() {
+            let chunk_pos = transform.translation;
+            
+            if voxel_world.get_voxel(chunk_pos.x as i32, chunk_pos.y as i32, chunk_pos.z as i32) == Some(&false) {
+                commands.entity(chunk_entity).despawn_recursive();
+                //println!("DESPAWN -> {x}, {y}, {z}")
+            }    
+        } 
+
+}
+
