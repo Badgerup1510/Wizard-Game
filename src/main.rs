@@ -35,16 +35,6 @@ fn main() {
 }
 
 
-
-
-#[derive(Component)]
-pub struct Chunk{
-    position: Vec3,
-}
-
-#[derive(Component)]
-struct Cube;
-
 /*
 #[derive(Component)]
 pub struct Player;
@@ -82,6 +72,17 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
         ..default()
     });
     
+    use crate::world::Chunk;
+    use crate::world::Position;
+
+    commands.spawn(Chunk {
+        position: Position{
+            x: 0,
+            y: 0,
+            z: 0,
+        }
+    });
+    
 
     let perlin = Perlin::new(1);
     let scale = 0.2;
@@ -99,7 +100,7 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
 } 
 
 
-
+/*
 fn spawn_cubes(voxels: [[[bool; 16]; 16]; 16], position: [f32; 3], mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
     let chunk_entity = commands.spawn((
         Chunk {
@@ -129,7 +130,7 @@ fn spawn_cubes(voxels: [[[bool; 16]; 16]; 16], position: [f32; 3], mut commands:
         }
     }
 }
-
+*/
 /*
 fn render_chunks(
         mut commands: Commands,
