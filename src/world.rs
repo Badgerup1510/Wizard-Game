@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use crate::HashSet;
 
 pub fn world_plugin(app: &mut App) {
     app.add_systems(Update, render_chunks);
@@ -18,99 +17,154 @@ pub struct Position {
 #[derive(Component)]
 pub struct Player;
 
-
+/*
+#[derive(Resource)]
+pub struct ExistingChunks:  [[[bool; 3]; 3]; 3];
+*/
 
 fn render_chunks(
-        mut commands: Commands,
-        mut meshes: ResMut<Assets<Mesh>>, 
-        mut materials: ResMut<Assets<StandardMaterial>>,        
-        player_query: Query<&Transform, With<Player>>,
-        chunk_query: Query<(Entity, &Chunk)>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>, 
+    mut materials: ResMut<Assets<StandardMaterial>>,        
+    player_query: Query<&Transform, With<Player>>,
+    chunk_query: Query<(Entity, &Chunk)>,
     ) {
-        let player_transform = player_query.single();
-        let x: isize = (player_transform.translation[0]) as isize/ 16;
-        let y: isize = (player_transform.translation[1]) as isize/ 16;
-        let z: isize = (player_transform.translation[2]) as isize/ 16;
 
+    // Define Immutable
+    const RENDER_DISTANCE: u32 = 4;                         // distance of 4 around the player 
+    //const RENDER_RANGE: u32 = (2 * RENDER_DISTANCE) + 1;    // 9 x 9 grid
+    const ARRAY_LENGTH: u32 = 65;                           // 33 x 33 chunk grid
+    const ARRAY_HALF: i32 = 32; 
 
-        let mut current_chunks = [[[false; 65]; 65]; 65];
-        let mut chunks_to_spawn = [[[false; 65]; 65]; 65]; 
-        let mut chunks_to_despawn = [[[false; 65]; 65]; 65];
-        let offset = 32;
+    // Define Mutable
+    let mut chunks_should_exist = [[[false; ARRAY_LENGTH as usize]; ARRAY_LENGTH as usize]; ARRAY_LENGTH as usize];
+    let mut chunks_does_exist = [[[false; ARRAY_LENGTH as usize]; ARRAY_LENGTH as usize]; ARRAY_LENGTH as usize];
 
+    // get player position in chunk
+    let player_transform = player_query.single();
 
-        //println!("{}, {}, {}", x + offset, y + offset ,z + offset);
+    let player_x: i32 = ((player_transform.translation[0] + 8.0) / 16.0).floor() as i32;
+    let player_y: i32 = ((player_transform.translation[1] + 8.0) / 16.0).floor() as i32;
+    let player_z: i32 = ((player_transform.translation[2] + 8.0) / 16.0).floor() as i32;        
 
-        // Collect existing chunks into a HashSet for quick lookup
-        for (_entity, chunk) in chunk_query.iter() {
-            let a: isize = (chunk.position.x / 16) as isize;
-            let b: isize = (chunk.position.y / 16) as isize;
-            let c: isize = (chunk.position.z / 16) as isize;
+    println!("{}, {}, {}", 
+        ((player_transform.translation[0] + 8.0) / 16.0).floor() as i32,
+        ((player_transform.translation[1] + 8.0) / 16.0).floor() as i32,
+        ((player_transform.translation[2] + 8.0) / 16.0).floor() as i32
+        );
+    /*
+    println!("Player: {}, {}, {}", player_x, player_y, player_z);
+    println!("Chunks: {} -> {}, {} -> {}, {} -> {}",
+        player_x - RENDER_DISTANCE as i32, player_x + RENDER_DISTANCE as i32,
+        player_y - RENDER_DISTANCE as i32, player_y + RENDER_DISTANCE as i32,
+        player_z - RENDER_DISTANCE as i32, player_z + RENDER_DISTANCE as i32
+        );
+    */
 
-            // if within bounds, assign it as a current chunk 
-            if a.abs() <= 32 && b.abs() <= 32 && c.abs() <= 32 {
-                current_chunks[(a + offset) as usize][(b + offset) as usize][(c + offset) as usize ] = true; 
-                println!("Chunk: {a}, {b}, {c} is {}", current_chunks[(a) as usize][(b) as usize][(c) as usize ]);
+    // loop through the positions around the player
+    for i in (player_x - RENDER_DISTANCE as i32)..=(player_x + RENDER_DISTANCE as i32) {
+        for j in (player_y - RENDER_DISTANCE as i32)..=(player_y + RENDER_DISTANCE as i32) {
+            for k in (player_z - RENDER_DISTANCE as i32)..=(player_z + RENDER_DISTANCE as i32) {
+                // The chunk should exist
+                chunks_should_exist[(ARRAY_HALF + i) as usize][(ARRAY_HALF + j) as usize][(ARRAY_HALF + k) as usize] = true;
+                //println!("Chunk: {i}, {j}, {k} should exist");
             }
         }
 
-        for i in (x - 3)..=(x + 3) {
-            for j in (y - 3)..=(y + 3) {
-                for k in (z - 3)..=(z + 3) {
-                    if i.abs() <= 32 && j.abs() <= 32 && k.abs() <= 32{
-                        println!("{i}, {j}, {k} => {}", current_chunks[(i + offset) as usize][(j + offset) as usize][(k + offset) as usize]);
-                        //println!("{i}, {j}, {k} => {}", current_chunks[(i + offset) as usize][(j + offset) as usize][(k + offset) as usize]);
-                        // spawn a chunk if it does not exist
-                        if !current_chunks[(i + offset) as usize][(j + offset) as usize][(k + offset) as usize] {
-                            chunks_to_spawn[(i + offset) as usize][(j + offset) as usize][(k + offset) as usize] = true;
-                            /*
-                            chunks_to_spawn[(i + offset) as usize][(j + offset) as usize][(k + offset) as usize] = true;
-                                let chunk_entity = commands.spawn((
-                                Chunk {
-                                    position: Vec3::new((i + offset) as f32 * 16.0, (j + offset) as f32 * 16.0, (k + offset) as f32 * 16.0),
-                                },
-                                SpatialBundle{..default()},
-                                    
-                                )).id();
-                                
-                                let cube = commands.spawn((
-                                        PbrBundle {
-                                            mesh: meshes.add(Cuboid::new(14.0, 1.0, 14.0)),
-                                            transform: Transform::from_xyz(
-                                                i as f32 * 16.0,
-                                                j as f32 * 16.0, 
-                                                k as f32 * 16.0,
-                                                ),
-                                            material: materials.add(Color::WHITE),
-                                            ..default()
-                                        },
-                                        Cube,
-                            )).id();
-                            commands.entity(chunk_entity).push_children(&[cube]);
-                        */ 
-                        }
-                        else {
-                            println!("A chunk exists")
-                        }
-                    }
+    }
 
-                    
-                    //valid_chunks[(i + offset) as usize][(j + offset) as usize][(k + offset) as usize] = true;
-                    //println!("{}", valid_chunks[(i + offset) as usize][(j + offset) as usize][(k + offset) as usize])
-                }
-            }
-        }
+
+    // Loop through existing chunks
+    for (entity, chunk) in chunk_query.iter() {
+        // chunk 0-65
+        let chunk_x: i32 = chunk.position.x;
+        let chunk_y: i32 = chunk.position.y;
+        let chunk_z: i32 = chunk.position.z;
+
         
-        let mut num_chunks_to_spawn = 0;
-        // loop through all chunk positions
-        for i in 0..65 {
-            for j in 0..65 {
-                for k in 0..65 {
-                    if chunks_to_spawn[i][j][k] {
-                        num_chunks_to_spawn += 1;
-                    }
+
+        if chunk_x <= 65 && chunk_y <= 65 && chunk_z <= 65 {
+            // The chunk does exist
+            chunks_does_exist[(ARRAY_HALF + chunk_x) as usize][(ARRAY_HALF + chunk_y) as usize][(ARRAY_HALF + chunk_z) as usize] = true;
+
+            //Despawns if it shouldnt exist
+            if !chunks_should_exist[(ARRAY_HALF + chunk_x) as usize][(ARRAY_HALF + chunk_y) as usize][(ARRAY_HALF + chunk_z)as usize] {
+                commands.entity(entity).despawn_recursive();
+                //println!("Despawning: {chunk_x}, {chunk_y}, {chunk_z}");
+            } 
+        }
+    }
+
+
+    // spawn chunk if necassary
+    for i in 0..ARRAY_LENGTH {
+        for j in 0..ARRAY_LENGTH {
+            for k in 0..ARRAY_LENGTH {
+                //println!("{}, {}", chunks_should_exist[i as usize][j as usize][k as usize], chunks_does_exist[i as usize][j as usize][k as usize]);
+                if chunks_should_exist[i as usize][j as usize][k as usize] && !chunks_does_exist[i as usize][j as usize][k as usize] {
+                    //println!("{}, {}, {}", i as f32 - 32.0, j as f32 - 32.0, k as f32 - 32.0);
+                    let chunk_entity = commands
+                        .spawn((
+                            Chunk {
+                                position: Position {
+                                    x: (i as isize - 32) as i32,
+                                    y: (j as isize - 32) as i32,
+                                    z: (k as isize - 32) as i32,
+                                }
+                            },
+                            SpatialBundle {
+                                transform: Transform::from_translation(Vec3::new(
+                                    (i as f32 - 32.0) * 16.0,
+                                    (j as f32 - 32.0) * 16.0,
+                                    (k as f32 - 32.0) * 16.0,
+                                )),
+                                ..Default::default()
+                            }
+                        ))
+                    .id();
+
+
+                    //println!("{}, {}, {}", (i as isize - 32) as i32, (j as isize -32) as i32, (k as isize -32) as i32);
+                    //println!("{}, {}, {}", i as f32 - 32.0, j as f32 - 32.0, k as f32 - 32.0);
+
+                    let cube = commands.spawn(( 
+                        PbrBundle {
+                            mesh: meshes.add(Cuboid::new(15.9, 1.0, 15.9)),
+                            transform: Transform::from_xyz(
+                                i as f32 - 32.0,
+                                j as f32 - 32.0,
+                                k as f32 - 32.0,
+                                ),
+                            material: materials.add(Color::WHITE),
+                            ..default()
+                        },  )).id();
+                    commands.entity(chunk_entity).push_children(&[cube]);
                 }
             }
         }
-        //println!("{}", num_chunks_to_spawn);
+    }
 }
+
+
+/*
+                        let chunk_entity = commands.spawn(Chunk {
+                            position: Position{
+                                x: (i as isize - offset) as i32,
+                                y: (j as isize - offset) as i32,
+                                z: (k as isize - offset) as i32,
+                            }
+                        }).id();   
+
+                        let cube = commands.spawn(( 
+                            PbrBundle {
+                                mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+                                transform: Transform::from_xyz(
+                                    i as f32 * 16.0,
+                                    j as f32 * 16.0,
+                                    k as f32 * 16.0,
+                                    ),
+                                material: materials.add(Color::WHITE),
+                                ..default()
+                            },  )).id();
+                        commands.entity(chunk_entity).push_children(&[cube]);
+*/
