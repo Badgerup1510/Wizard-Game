@@ -7,10 +7,13 @@ edition = "2021"
 opt-level = 3
 
 [dependencies]
+avian = "0.0.0"
 bevy = "0.14"
 bevy_atmosphere = "0.10.0"
-bevy_flycam = "*"
+bevy_dev_tools = "0.14.2"
+bevy_flycam = "0.14.1"
 multiarray = "0.1.3"
 noise = "0.9.0"
+perlin2d = "0.2.6"
 pixelate_mesh = "0.4.0"
 rand = "0.8.5"

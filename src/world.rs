@@ -1,11 +1,17 @@
 use bevy::prelude::*;
+use pixelate_mesh::prelude::*;
+
+use crate::MainCamera;
+
+use crate::chunk::{generate_chunk, generate_chunk_mesh, generate_chunk_data};
 
 pub fn world_plugin(app: &mut App) {
     app.add_systems(Update, render_chunks);
+    app.add_plugins(PixelateMeshPlugin::<MainCamera>::default());
 }
 #[derive(Component)]
 pub struct Chunk{
-    pub position: Position
+    pub position: Position,
 }
 
 pub struct Position {
@@ -17,10 +23,6 @@ pub struct Position {
 #[derive(Component)]
 pub struct Player;
 
-/*
-#[derive(Resource)]
-pub struct ExistingChunks:  [[[bool; 3]; 3]; 3];
-*/
 
 fn render_chunks(
     mut commands: Commands,
@@ -47,20 +49,6 @@ fn render_chunks(
     let player_y: i32 = ((player_transform.translation[1] + 8.0) / 16.0).floor() as i32;
     let player_z: i32 = ((player_transform.translation[2] + 8.0) / 16.0).floor() as i32;        
 
-    println!("{}, {}, {}", 
-        ((player_transform.translation[0] + 8.0) / 16.0).floor() as i32,
-        ((player_transform.translation[1] + 8.0) / 16.0).floor() as i32,
-        ((player_transform.translation[2] + 8.0) / 16.0).floor() as i32
-        );
-    /*
-    println!("Player: {}, {}, {}", player_x, player_y, player_z);
-    println!("Chunks: {} -> {}, {} -> {}, {} -> {}",
-        player_x - RENDER_DISTANCE as i32, player_x + RENDER_DISTANCE as i32,
-        player_y - RENDER_DISTANCE as i32, player_y + RENDER_DISTANCE as i32,
-        player_z - RENDER_DISTANCE as i32, player_z + RENDER_DISTANCE as i32
-        );
-    */
-
     // loop through the positions around the player
     for i in (player_x - RENDER_DISTANCE as i32)..=(player_x + RENDER_DISTANCE as i32) {
         for j in (player_y - RENDER_DISTANCE as i32)..=(player_y + RENDER_DISTANCE as i32) {
@@ -73,15 +61,13 @@ fn render_chunks(
 
     }
 
-
     // Loop through existing chunks
     for (entity, chunk) in chunk_query.iter() {
         // chunk 0-65
         let chunk_x: i32 = chunk.position.x;
         let chunk_y: i32 = chunk.position.y;
         let chunk_z: i32 = chunk.position.z;
-
-        
+         
 
         if chunk_x <= 65 && chunk_y <= 65 && chunk_z <= 65 {
             // The chunk does exist
@@ -94,7 +80,8 @@ fn render_chunks(
             } 
         }
     }
-
+    let cube_mesh_handle = meshes.add(Cuboid::new(15.9, 1.0, 15.9));
+    let material_handle = materials.add(Color::WHITE);
 
     // spawn chunk if necassary
     for i in 0..ARRAY_LENGTH {
@@ -127,18 +114,33 @@ fn render_chunks(
                     //println!("{}, {}, {}", (i as isize - 32) as i32, (j as isize -32) as i32, (k as isize -32) as i32);
                     //println!("{}, {}, {}", i as f32 - 32.0, j as f32 - 32.0, k as f32 - 32.0);
 
+
                     let cube = commands.spawn(( 
                         PbrBundle {
-                            mesh: meshes.add(Cuboid::new(15.9, 1.0, 15.9)),
+                            mesh: meshes.add(generate_chunk_mesh(generate_chunk(Position{x: i as i32 - 32, y: j as i32 - 32, z: k as i32 - 32}))), 
                             transform: Transform::from_xyz(
-                                i as f32 - 32.0,
-                                j as f32 - 32.0,
-                                k as f32 - 32.0,
+                                i as f32 - 32.0 - 9.0 ,
+                                j as f32 - 32.0 - 9.0,
+                                k as f32 - 32.0 - 9.0,
                                 ),
-                            material: materials.add(Color::WHITE),
+                            material: material_handle.clone(),
                             ..default()
-                        },  )).id();
+                        }, )).id();
                     commands.entity(chunk_entity).push_children(&[cube]);
+                    
+                    /*
+                    commands.spawn(( 
+                        PbrBundle {
+                            mesh: cube_mesh_handle.clone(),
+                            transform: Transform::from_xyz(
+                                i as f32 - 32.0 - 8.0,
+                                j as f32 - 32.0 - 8.0,
+                                k as f32 - 32.0 - 8.0,
+                                ),
+                            material: material_handle.clone(),
+                            ..default()
+                        }, ));
+                    */
                 }
             }
         }

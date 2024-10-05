@@ -17,6 +17,9 @@ use crate::chunk::chunk_plugin;
 
 mod player_character;
 
+mod dynamic_character_3d;
+//mod first_person_character;
+//use crate::first_person_character::PlayerPlugin;
 
 
 #[bevy_main]
@@ -44,7 +47,7 @@ fn main() {
                 ))
         .insert_resource(MovementSettings {
             sensitivity: 0.00006,
-            speed: 12.0,
+            speed: 6.0,
         })
         //.add_plugins(PixelateMeshPlugin::<MainCamera>::default())
         .add_systems(Startup, (setup))
@@ -59,7 +62,6 @@ pub struct Player;
 */
 
 use world::Player;
-use player_character::PlayerCharacterComponent;
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -76,7 +78,6 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
         FlyCam,
         Player,
         MainCamera,
-        PlayerCharacterComponent::new(),
 
     ));
 
@@ -94,6 +95,10 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     });
     */
     
+    use crate::world::Chunk;
+    use crate::world::Position;
+
+
     /*
     commands.spawn(Chunk {
         position: Position{
