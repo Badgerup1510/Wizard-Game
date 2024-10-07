@@ -34,6 +34,7 @@ fn render_chunks(
 
     // Define Immutable
     const RENDER_DISTANCE: u32 = 4;                         // distance of 4 around the player 
+    const RENDER_DISTANCE_HALF: u32 = RENDER_DISTANCE /2;    // half render distance
     //const RENDER_RANGE: u32 = (2 * RENDER_DISTANCE) + 1;    // 9 x 9 grid
     const ARRAY_LENGTH: u32 = 65;                           // 33 x 33 chunk grid
     const ARRAY_HALF: i32 = 32; 
@@ -101,9 +102,9 @@ fn render_chunks(
                             },
                             SpatialBundle {
                                 transform: Transform::from_translation(Vec3::new(
-                                    (i as f32 - 32.0) * 16.0,
-                                    (j as f32 - 32.0) * 16.0,
-                                    (k as f32 - 32.0) * 16.0,
+                                    (i as f32 - 32.0) * 1.0,
+                                    (j as f32 - 32.0) * 1.0,
+                                    (k as f32 - 32.0) * 1.0,
                                 )),
                                 ..Default::default()
                             }
@@ -118,29 +119,19 @@ fn render_chunks(
                     let cube = commands.spawn(( 
                         PbrBundle {
                             mesh: meshes.add(generate_chunk_mesh(generate_chunk(Position{x: i as i32 - 32, y: j as i32 - 32, z: k as i32 - 32}))), 
+                            //mesh: meshes.add(generate_chunk_mesh(temp)),
                             transform: Transform::from_xyz(
-                                i as f32 - 32.0 - 9.0 ,
-                                j as f32 - 32.0 - 9.0,
-                                k as f32 - 32.0 - 9.0,
+                                (i as f32 - 32.0) * 15.0 - (RENDER_DISTANCE_HALF as f32 * 15.0), 
+                                (j as f32 - 32.0) * 15.0 - (RENDER_DISTANCE_HALF as f32 * 15.0),
+                                (k as f32 - 32.0) * 15.0 - (RENDER_DISTANCE_HALF as f32 * 15.0),
                                 ),
                             material: material_handle.clone(),
                             ..default()
                         }, )).id();
                     commands.entity(chunk_entity).push_children(&[cube]);
                     
-                    /*
-                    commands.spawn(( 
-                        PbrBundle {
-                            mesh: cube_mesh_handle.clone(),
-                            transform: Transform::from_xyz(
-                                i as f32 - 32.0 - 8.0,
-                                j as f32 - 32.0 - 8.0,
-                                k as f32 - 32.0 - 8.0,
-                                ),
-                            material: material_handle.clone(),
-                            ..default()
-                        }, ));
-                    */
+
+
                 }
             }
         }

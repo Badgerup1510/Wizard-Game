@@ -20,11 +20,11 @@ pub fn generate_chunk_data(position: Position) -> [[[bool; 16]; 16]; 16] {
     // perlin noise parameters
     let octaves: i32 = 6; // detail
     let amplitude: f64 = 20.0; // the absolute output value 
-    let frequency: f64 = 0.5; //cycles per unit length ???
+    let frequency: f64 = 0.3; //cycles per unit length ???
     let persistence: f64 = 1.0; // determines how the amplitude diminishes
     let lacunarity: f64 = 2.0; // determines frequency increses of octaves
     let scale: (f64, f64) = (100.0, 100.0); // a distance to view the noise map ???
-    let bias: f64 = 0.0; // Used to make output positive
+    let bias: f64 = 10.0; // Used to make output positive
     let seed: i32 = 100; // changes the output
 
     let perlin = PerlinNoise2D::new(octaves, amplitude, frequency, persistence, lacunarity, scale, bias, seed);
@@ -51,37 +51,85 @@ pub fn generate_chunk_data(position: Position) -> [[[bool; 16]; 16]; 16] {
 }
 
 pub fn generate_chunk(position: Position)
-    -> [[[bool; 18]; 18]; 18]
+    -> [[[bool; 48]; 48]; 48]
 {
     let m_x = position.x;
     let m_y = position.y;
     let m_z = position.z;
 
     // Define chunks
-    let mut chunk: [[[bool; 18]; 18]; 18] = [[[false; 18]; 18]; 18];
-    let main_chunk = generate_chunk_data(position);
-    let top_chunk = generate_chunk_data(Position{x: m_x, y: m_y + 1, z: m_z});
-    let bottom_chunk = generate_chunk_data(Position{x: m_x, y: m_y - 1, z: m_z});
-    let right_chunk = generate_chunk_data(Position{x: m_x + 1, y: m_y, z: m_z});
-    let left_chunk = generate_chunk_data(Position{x: m_x - 1, y: m_y, z: m_z});
-    let front_chunk = generate_chunk_data(Position{x: m_x, y: m_y, z: m_z + 1});
-    let back_chunk = generate_chunk_data(Position{x: m_x, y: m_y, z: m_z - 1});
+    let mut chunk: [[[bool; 48]; 48]; 48] = [[[false; 48]; 48]; 48];
+    let chunk_111 = generate_chunk_data(position);
+    let chunk_121 = generate_chunk_data(Position{x: m_x, y: m_y + 1, z: m_z});
+    let chunk_101 = generate_chunk_data(Position{x: m_x, y: m_y - 1, z: m_z});
+    let chunk_211 = generate_chunk_data(Position{x: m_x + 1, y: m_y, z: m_z});
+    let chunk_011 = generate_chunk_data(Position{x: m_x - 1, y: m_y, z: m_z});
+    let chunk_112 = generate_chunk_data(Position{x: m_x, y: m_y, z: m_z + 1});
+    let chunk_110 = generate_chunk_data(Position{x: m_x, y: m_y, z: m_z - 1});
     // Diagonals
     // i/j
-    let cube_right_up = generate_chunk_data(Position{x: m_x + 1, y: m_y + 1, z: m_z});// [i + 1][j + 1][k];
-    let cube_right_down = generate_chunk_data(Position{x: m_x + 1, y: m_y - 1, z: m_z});//[i + 1][j - 1][k];
-    let cube_left_up = generate_chunk_data(Position{x: m_x - 1, y: m_y + 1, z: m_z});//[i - 1][j + 1][k];
-    let cube_left_down = generate_chunk_data(Position{x: m_x - 1, y: m_y - 1, z: m_z});//[i - 1][j - 1][k];
+    let chunk_221 = generate_chunk_data(Position{x: m_x + 1, y: m_y + 1, z: m_z});// [i + 1][j + 1][k];
+    let chunk_201 = generate_chunk_data(Position{x: m_x + 1, y: m_y - 1, z: m_z});//[i + 1][j - 1][k];
+    let chunk_021 = generate_chunk_data(Position{x: m_x - 1, y: m_y + 1, z: m_z});//[i - 1][j + 1][k];
+    let chunk_001 = generate_chunk_data(Position{x: m_x - 1, y: m_y - 1, z: m_z});//[i - 1][j - 1][k];
     // k/j
-    let cube_front_up = generate_chunk_data(Position{x: m_x, y: m_y + 1, z: m_z + 1});//[i][j + 1][k + 1];
-    let cube_front_down = generate_chunk_data(Position{x: m_x, y: m_y - 1, z: m_z + 1});//[i][j - 1][k + 1];
-    let cube_hind_up = generate_chunk_data(Position{x: m_x, y: m_y + 1, z: m_z - 1});//[i][j + 1][k - 1];
-    let cube_hind_down = generate_chunk_data(Position{x: m_x, y: m_y - 1, z: m_z - 1});//[i][j - 1][k - 1];
+    let chunk_122 = generate_chunk_data(Position{x: m_x, y: m_y + 1, z: m_z + 1});//[i][j + 1][k + 1];
+    let chunk_102 = generate_chunk_data(Position{x: m_x, y: m_y - 1, z: m_z + 1});//[i][j - 1][k + 1];
+    let chunk_120 = generate_chunk_data(Position{x: m_x, y: m_y + 1, z: m_z - 1});//[i][j + 1][k - 1];
+    let chunk_100 = generate_chunk_data(Position{x: m_x, y: m_y - 1, z: m_z - 1});//[i][j - 1][k - 1];
     // i/k
-    let cube_left_front = generate_chunk_data(Position{x: m_x - 1, y: m_y, z: m_z + 1});
-    let cube_left_hind = generate_chunk_data(Position{x: m_x - 1, y: m_y, z: m_z - 1});
-    let cube_right_front = generate_chunk_data(Position{x: m_x + 1, y: m_y, z: m_z + 1});
-    let cube_right_hind = generate_chunk_data(Position{x: m_x + 1, y: m_y, z: m_z - 1});
+    let chunk_012 = generate_chunk_data(Position{x: m_x - 1, y: m_y, z: m_z + 1});
+    let chunk_010 = generate_chunk_data(Position{x: m_x - 1, y: m_y, z: m_z - 1});
+    let chunk_212 = generate_chunk_data(Position{x: m_x + 1, y: m_y, z: m_z + 1});
+    let chunk_210 = generate_chunk_data(Position{x: m_x + 1, y: m_y, z: m_z - 1});
+
+    // corners
+    let chunk_222 = generate_chunk_data(Position{x: m_x + 1, y: m_y + 1, z: m_z + 1});
+    let chunk_220 = generate_chunk_data(Position{x: m_x + 1, y: m_y + 1, z: m_z - 1});
+    let chunk_202 = generate_chunk_data(Position{x: m_x + 1, y: m_y - 1, z: m_z + 1});
+    let chunk_200 = generate_chunk_data(Position{x: m_x + 1, y: m_y - 1, z: m_z - 1});
+    let chunk_022 = generate_chunk_data(Position{x: m_x - 1, y: m_y + 1, z: m_z + 1});
+    let chunk_020 = generate_chunk_data(Position{x: m_x - 1, y: m_y + 1, z: m_z - 1});
+    let chunk_002 = generate_chunk_data(Position{x: m_x - 1, y: m_y - 1, z: m_z + 1});
+    let chunk_000 = generate_chunk_data(Position{x: m_x - 1, y: m_y - 1, z: m_z - 1});
+
+    for a in 0..=15 {
+        for b in 0..=15 {
+            for c in 0..=15 {
+                chunk[a][b][c] = chunk_000[a][b][c];
+                chunk[a][b][c + 16] = chunk_001[a][b][c];
+                chunk[a][b][c + 32] = chunk_002[a][b][c];
+                chunk[a][b + 16][c] = chunk_010[a][b][c];
+                chunk[a][b + 16][c + 16] = chunk_011[a][b][c];
+                chunk[a][b + 16][c + 32] = chunk_012[a][b][c];
+                chunk[a][b + 32][c] = chunk_020[a][b][c];
+                chunk[a][b + 32][c + 16] = chunk_021[a][b][c];
+                chunk[a][b + 32][c + 32] = chunk_022[a][b][c];
+                chunk[a + 16][b][c] = chunk_100[a][b][c];
+                chunk[a + 16][b][c + 16] = chunk_101[a][b][c];
+                chunk[a + 16][b][c + 32] = chunk_102[a][b][c];
+                chunk[a + 16][b + 16][c] = chunk_110[a][b][c];
+                chunk[a + 16][b + 16][c + 16] = chunk_111[a][b][c];
+                chunk[a + 16][b + 16][c + 32] = chunk_112[a][b][c];
+                chunk[a + 16][b + 32][c] = chunk_120[a][b][c];
+                chunk[a + 16][b + 32][c + 16] = chunk_121[a][b][c];
+                chunk[a + 16][b + 32][c + 32] = chunk_122[a][b][c];
+                chunk[a + 32][b][c] = chunk_200[a][b][c];
+                chunk[a + 32][b][c + 16] = chunk_201[a][b][c];
+                chunk[a + 32][b][c + 32] = chunk_202[a][b][c];
+                chunk[a + 32][b + 16][c] = chunk_210[a][b][c];
+                chunk[a + 32][b + 16][c + 16] = chunk_211[a][b][c];
+                chunk[a + 32][b + 16][c + 32] = chunk_212[a][b][c];
+                chunk[a + 32][b + 32][c] = chunk_220[a][b][c];
+                chunk[a + 32][b + 32][c + 16] = chunk_221[a][b][c];
+                chunk[a + 32][b + 32][c + 32] = chunk_222[a][b][c];
+            }
+        }
+    }
+
+    chunk
+
+    /*
 
     // Set chunk
     // Main chunk
@@ -147,9 +195,8 @@ pub fn generate_chunk(position: Position)
         chunk[17][a + 1][0] = cube_right_hind[0][a][15];
         chunk[17][a + 1][17] = cube_right_front[0][a][0];
     }
-    println!("{}", chunk[0][0][0]);
 
-    chunk
+    */
 
     /*
     // spawn chunk
@@ -183,7 +230,7 @@ fn shift_right(arr: &mut [[[f32; 18]; 18]; 18]) {
 }
 */
 
-pub fn generate_chunk_mesh(chunk: [[[bool; 18]; 18]; 18]) -> Mesh {
+pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
     // init empty triangle list mesh
     
     // define mesh attribute vectors
@@ -195,11 +242,12 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 18]; 18]; 18]) -> Mesh {
     let mut indices_counter = 0;
 
     // loop through each position in chunk
-    for i in 1..17 {
-        for j in 1..17 {
-            for k in 1..17 {
+    for i in 15..31 {
+        for j in 15..31 {
+            for k in 15..31 {
                 // if current cube exists
-                //println!("Chunk: {}", chunk[i][j][k]);
+                //print!("[{}, {}, {}]", i, j, k);
+
                 if chunk[i][j][k] {
                     // define other cubes                // normals
                     let cube_right = !chunk[i + 1][j][k]; // [1, 0, 0]
@@ -436,12 +484,23 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 18]; 18]; 18]) -> Mesh {
 */
 
 fn chunk_startup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
-
-    let temp: Position  = Position {
+    /*
+    let _temp: Position  = Position {
        x: 0,
        y: 0,
        z: 0,
     };
+    let mut temp: [[[bool; 18];18];18] = [[[false; 18]; 18]; 18];
+    let temp1 = generate_chunk(Position{x: 0, y: -2, z: 0});
+    for i in 0..16 {
+        for j in 0..16 {
+            for k in 0..16 {
+                // Centre
+                temp[i + 1][j + 1][k + 1] = temp1[i][j][k];
+            }
+        }
+    }
+    */
 
     //println!("{:?} -> {:?}", generate_chunk(Position{x: 0, y: -2, z: 0}), generate_chunk(Position{x: 1, y: -2, z: 0}))
 

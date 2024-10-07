@@ -17,6 +17,7 @@ use crate::chunk::chunk_plugin;
 
 mod player_character;
 
+mod voxel_world;
 
 
 #[bevy_main]
