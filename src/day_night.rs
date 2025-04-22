@@ -2,6 +2,8 @@ use bevy::{pbr::light_consts::lux::AMBIENT_DAYLIGHT, prelude::*};
 use bevy_atmosphere::prelude::*;
 //use bevy_spectator::{Spectator, SpectatorPlugin};
 
+/*
+
 pub fn day_night_plugin(app: &mut App){
         app.insert_resource(Msaa::Sample4);
         app.insert_resource(AtmosphereModel::default()); // Default Atmosphere material, we can edit it to simulate another planet
@@ -106,3 +108,4 @@ fn setup_environment(
     });
     */
 }
+*/

@@ -10,7 +10,12 @@ use perlin2d::PerlinNoise2D;
 use crate::world::Position;
 
 pub fn chunk_plugin(app: &mut App) {
-    app.add_systems(Startup, chunk_startup);
+    //app.add_systems(Startup, chunk_startup);
+}
+
+pub enum BlockType {
+    Grass,
+    Stone,
 }
 
 pub fn generate_chunk_data(position: Position) -> [[[bool; 16]; 16]; 16] {
@@ -18,8 +23,8 @@ pub fn generate_chunk_data(position: Position) -> [[[bool; 16]; 16]; 16] {
     let mut chunk = [[[false; 16];16];16];
 
     // perlin noise parameters
-    let octaves: i32 = 6; // detail
-    let amplitude: f64 = 20.0; // the absolute output value 
+    let octaves: i32 = 4; // detail
+    let amplitude: f64 = 40.0; // the absolute output value 
     let frequency: f64 = 0.3; //cycles per unit length ???
     let persistence: f64 = 1.0; // determines how the amplitude diminishes
     let lacunarity: f64 = 2.0; // determines frequency increses of octaves
@@ -128,109 +133,10 @@ pub fn generate_chunk(position: Position)
     }
 
     chunk
-
-    /*
-
-    // Set chunk
-    // Main chunk
-
-    for i in 0..16 {
-        for j in 0..16 {
-            for k in 0..16 {
-                // Centre
-                chunk[i + 1][j + 1][k + 1] = main_chunk[i][j][k];
-            }
-        }
-    }
-
-
-
-    // Left and Right
-    for k in 1..16 {
-        for j in 1..16 {
-            // Left
-            chunk[0][j][k] = left_chunk[15][j][k];
-
-            // Right
-            chunk[17][j][k] = right_chunk[0][j][k];
-        }
-    }
-
-    // Top and Bottom
-    for i in 1..16 {
-        for k in 1..16 {
-            // Bottom
-            chunk[i][0][k] = bottom_chunk[i][15][k];
-            // Top
-            chunk[i][17][k] = top_chunk[i][0][k];
-
-        }
-    }
-
-    // Front and Back
-    for i in 1..16 {
-        for j in 1..16 {
-            // Back
-            chunk[i][j][0] = back_chunk[i][j][15];
-            // Front
-            chunk[i][j][17] = front_chunk[i][j][0];
-        }
-    }
-
-
-    for a in 0..16 {
-        // i/j
-        chunk[0][17][a + 1] = cube_left_up[15][0][a];
-        chunk[0][0][a + 1] = cube_left_down[15][15][a];
-        chunk[17][17][a + 1] = cube_right_up[0][0][a];
-        chunk[17][0][a + 1] = cube_right_down[0][15][a];
-        // k/j
-        chunk[a + 1][17][0] = cube_hind_up[a][0][15];
-        chunk[a + 1][0][0] = cube_hind_down[a][15][15];
-        chunk[a + 1][0][17] = cube_front_down[a][15][0];
-        chunk[a + 1][17][17] = cube_front_up[a][0][0];
-        // i/k
-        chunk[0][a + 1][17] = cube_left_front[15][a][0];
-        chunk[0][a + 1][0] = cube_left_hind[15][a][15];
-        chunk[17][a + 1][0] = cube_right_hind[0][a][15];
-        chunk[17][a + 1][17] = cube_right_front[0][a][0];
-    }
-
-    */
-
-    /*
-    // spawn chunk
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(generate_chunk_mesh(chunk)),
-        transform: Transform::from_xyz(m_x as f32 * 16.0, m_y as f32 * 16.0, m_z as f32 * 16.0),
-        material: materials.add(Color::WHITE),
-        ..default()
-    });
-    */
 }
 
-/*
-fn shift_right(arr: &mut [[[f32; 18]; 18]; 18]) {
-    // Flatten the 3D array into a 1D iterator
-    let mut flat_arr: Vec<bool> = arr.iter().flatten().flatten().copied().collect();
 
-    // Shift the flat array
-    let last = flat_arr.pop().unwrap();  // Remove the last element
-    flat_arr.insert(0, last);  // Insert the last element at the start
-
-    // Reshape the flat array back into the 3D structure
-    let mut iter = flat_arr.into_iter();
-    for i in 0..3 {
-        for j in 0..3 {
-            for k in 0..3 {
-                arr[i][j][k] = iter.next().unwrap();
-            }
-        }
-    }
-}
-*/
-
-pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
+pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> (Mesh, bool) {
     // init empty triangle list mesh
     
     // define mesh attribute vectors
@@ -242,11 +148,12 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
     let mut indices_counter = 0;
 
     // loop through each position in chunk
-    for i in 15..31 {
-        for j in 15..31 {
-            for k in 15..31 {
+    for mut i in 15..31 {
+        for mut j in 15..31 {
+            for mut k in 15..31 {
                 // if current cube exists
                 //print!("[{}, {}, {}]", i, j, k);
+                
 
                 if chunk[i][j][k] {
                     // define other cubes                // normals
@@ -268,6 +175,12 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
                     let v1_1_0: [f32; 3] = [(i as f32 + 1.0), (j as f32 + 1.0), (k as f32)];
                     let v1_1_1: [f32; 3] = [(i as f32 + 1.0), (j as f32 + 1.0), (k as f32 + 1.0)];
 
+                    /*
+                    if cube_right || cube_left || cube_above || cube_below || cube_front || cube_hind {
+                        atr_uv.extend(uv_from_block_type(BlockType::Grass));
+                    }
+                    */
+                    
 
                     // check each touching face
                     if cube_below {
@@ -276,10 +189,8 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
                         atr_pos.push(v1_0_0);
                         atr_pos.push(v1_0_1);
                         
-                        atr_uv.push([0.0, 1.0]);
-                        atr_uv.push([0.0, 0.0]);
-                        atr_uv.push([1.0,0.0]);
-                        atr_uv.push([1.0, 1.0]);
+                        atr_uv.extend(uv_from_block_type(BlockType::Grass));
+
 
                         atr_norm.push([0.0, -1.0, 0.0]);
                         atr_norm.push([0.0, -1.0, 0.0]);
@@ -302,10 +213,7 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
                         atr_pos.push(v0_1_0); //010
                         atr_pos.push(v0_1_1); //011
 
-                        atr_uv.push([0.0, 1.0]);
-                        atr_uv.push([0.0, 0.0]);
-                        atr_uv.push([1.0, 0.0]);
-                        atr_uv.push([1.0, 1.0]);
+                        atr_uv.extend(uv_from_block_type(BlockType::Grass));
 
                         atr_norm.push([0.0, 1.0, 0.0]);
                         atr_norm.push([0.0, 1.0, 0.0]);
@@ -328,10 +236,8 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
                         atr_pos.push(v1_0_0); 
                         atr_pos.push(v1_1_0);
 
-                        atr_uv.push([0.0, 1.0]);
-                        atr_uv.push([0.0, 0.0]);
-                        atr_uv.push([1.0, 0.0]);
-                        atr_uv.push([1.0, 1.0]);
+                        atr_uv.extend(uv_from_block_type(BlockType::Grass));
+
 
                         atr_norm.push([1.0, 0.0, 0.0]);
                         atr_norm.push([1.0, 0.0, 0.0]);
@@ -354,10 +260,8 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
                         atr_pos.push(v0_0_1); 
                         atr_pos.push(v0_1_1);
 
-                        atr_uv.push([0.0, 1.0]);
-                        atr_uv.push([0.0, 0.0]);
-                        atr_uv.push([1.0, 0.0]);
-                        atr_uv.push([1.0, 1.0]);
+                        atr_uv.extend(uv_from_block_type(BlockType::Grass));
+
 
                         atr_norm.push([-1.0, 0.0, 0.0]);
                         atr_norm.push([-1.0, 0.0, 0.0]);
@@ -380,10 +284,8 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
                         atr_pos.push(v1_0_1); 
                         atr_pos.push(v1_1_1);
 
-                        atr_uv.push([0.0, 1.0]);
-                        atr_uv.push([0.0, 0.0]);
-                        atr_uv.push([1.0, 0.0]);
-                        atr_uv.push([1.0, 1.0]);
+                        atr_uv.extend(uv_from_block_type(BlockType::Grass));
+
 
                         atr_norm.push([0.0, 0.0, 1.0]);
                         atr_norm.push([0.0, 0.0, 1.0]);
@@ -406,10 +308,8 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
                         atr_pos.push(v0_0_0); 
                         atr_pos.push(v0_1_0);
 
-                        atr_uv.push([0.0, 1.0]);
-                        atr_uv.push([0.0, 0.0]);
-                        atr_uv.push([1.0, 0.0]);
-                        atr_uv.push([1.0, 1.0]);
+                        atr_uv.extend(uv_from_block_type(BlockType::Grass));
+
 
                         atr_norm.push([0.0, 0.0, -1.0]);
                         atr_norm.push([0.0, 0.0, -1.0]);
@@ -432,7 +332,7 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
 
 
     // Create a new mesh using a triangle list topology, where each set of 3 vertices composes a triangle.
-    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
+    let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
         // Add 4 vertices, each with its own position attribute (coordinate in
         // 3D space), for each of the corners of the parallelogram.
         .with_inserted_attribute(
@@ -451,74 +351,29 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> Mesh {
         )
         // After defining all the vertices and their attributes, build each triangle using the
         // indices of the vertices that make it up in a counter-clockwise order.
-        .with_inserted_indices(Indices::U32(indices))
+        .with_inserted_indices(Indices::U32(indices));
+    let result = indices_counter != 0;
 
+    (mesh, result)
 }
 
-/*
+fn uv_from_block_type(
+    block_type: BlockType,
+) -> Vec<[f32; 2]> {
+    match block_type {
+        BlockType::Grass => {
+            vec![[0.51, 1.0], [0.51, 0.0], [1.0, 0.0], [1.0, 1.0]]
+}
+        BlockType::Stone => {
+            vec![[0.0, 1.0], [0.0, 0.0], [0.49, 0.0], [0.49, 1.0]]
 
-*/
-/*
-                       atr_pos.push([
-                            [, , ], [, , ], [, , ], 
-                            [[], [], []],
-                            [[], [], []],
-                            [[], [], []]
-
-                            ]);
-                        atr_uv.push([
-                            [, ], [, ], [, ], 
-                            [[], [], []],
-                            [[], [], []],
-                            [[], [], []]
-
-                            ]);
-                        atr_norm.push([
-                            [, , ], [, , ], [, , ], 
-                            [[], [], []],
-                            [[], [], []],
-                            [[], [], []]
-
-                            ]);
-
-*/
-
-fn chunk_startup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
-    /*
-    let _temp: Position  = Position {
-       x: 0,
-       y: 0,
-       z: 0,
-    };
-    let mut temp: [[[bool; 18];18];18] = [[[false; 18]; 18]; 18];
-    let temp1 = generate_chunk(Position{x: 0, y: -2, z: 0});
-    for i in 0..16 {
-        for j in 0..16 {
-            for k in 0..16 {
-                // Centre
-                temp[i + 1][j + 1][k + 1] = temp1[i][j][k];
-            }
-        }
+}
     }
-    */
 
-    //println!("{:?} -> {:?}", generate_chunk(Position{x: 0, y: -2, z: 0}), generate_chunk(Position{x: 1, y: -2, z: 0}))
-
-    //generate_chunk(temp);
-    //println!("spawned chunk");
-    /*
-    generate_chunk_data(temp);
-
-
-    commands.spawn(PbrBundle {
-       mesh: meshes.add(create_simple_parallelogram()),
-       transform: Transform::from_xyz(0.0, 1.0, 0.0),
-       material: materials.add(Color::WHITE),
-       ..default()
-    });
-    */
 }
 
+
+/*
 fn create_simple_parallelogram() -> Mesh {
     // Create a new mesh using a triangle list topology, where each set of 3 vertices composes a triangle.
     Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
@@ -547,7 +402,7 @@ fn create_simple_parallelogram() -> Mesh {
             1, 3, 2
         ]))
 }
-
+*/
 
 /*
 fn create_chunk_mesh(positions: [[[bool; 18]; 18]; 18], mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: Resmut<Assets<Material>>) {

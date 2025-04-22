@@ -2,12 +2,11 @@ use bevy::{prelude::*,
     ecs::prelude::Commands, 
 };
 use bevy_dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
-use bevy_flycam::prelude::*;
-use bevy_atmosphere::prelude::*;
-use noise::{NoiseFn, Perlin, Seedable};
+
+use avian3d::prelude::*;
 
 mod day_night;
-use crate::day_night::day_night_plugin;
+//use crate::day_night::day_night_plugin;
 
 mod world;
 use crate::world::world_plugin;
@@ -16,51 +15,22 @@ mod chunk;
 use crate::chunk::chunk_plugin;
 
 mod player_character;
-
-mod voxel_world;
-
+use crate::player_character::{spawn_view_model, PlayerCharacterPlugin};
 
 #[bevy_main]
 fn main() {
     App::new()
         .add_plugins((
                 DefaultPlugins, 
-                NoCameraPlayerPlugin, 
-                AtmospherePlugin, 
-                day_night_plugin,
+                PhysicsPlugins::default(),
                 world_plugin,
                 chunk_plugin,
-                FpsOverlayPlugin {
-                    config: FpsOverlayConfig {
-                        text_config: TextStyle {
-                            // Here we define size of our overlay
-                            font_size: 50.0,
-                            // We can also change color of the overlay
-                            color: Color::srgb(0.0, 1.0, 0.0),
-                            // If we want, we can use a custom font
-                            font: default(),
-                        },
-                    },
-                },
+                PlayerCharacterPlugin,
                 ))
-        .insert_resource(MovementSettings {
-            sensitivity: 0.00006,
-            speed: 12.0,
-        })
-        //.add_plugins(PixelateMeshPlugin::<MainCamera>::default())
-        .add_systems(Startup, (setup))
-        //.add_systems(Update, (render_chunks))
+        //.insert_resource(Gravity(Vec3::NEG_Y * 0.0))
+        .add_systems(Startup, setup)
         .run();
 }
-
-
-/*
-#[derive(Component)]
-pub struct Player;
-*/
-
-use world::Player;
-use player_character::PlayerCharacterComponent;
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -68,124 +38,28 @@ pub struct MainCamera;
 fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
     
     // spawns the main camera
+    spawn_view_model(commands, meshes, materials);
+
+    /*
     commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 2.0, 0.5),
-            ..default()
-        },
-        AtmosphereCamera::default(),
-        FlyCam,
+        Camera3d::default(),
         Player,
         MainCamera,
-        PlayerCharacterComponent::new(),
+        PlayerCharacterComponent,
+        RigidBody::Dynamic,
+        Collider::capsule(1.0, 3.0),
+        LockedAxes::ROTATION_LOCKED,
+    ));
+    */
+
+    // spawn debug ball for collision testing
+    /*
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+        RigidBody::Dynamic,
+        Collider::sphere(0.9),
 
     ));
-
-    /*
-    // spawns a directional light
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            color: Color::WHITE,
-            illuminance: 10000.0,
-            shadows_enabled: false,
-            ..default()
-        },
-        transform: Transform::from_xyz(5.0, 10.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
     */
-    
-    /*
-    commands.spawn(Chunk {
-        position: Position{
-            x: 1600,
-            y: 1600,
-            z: 1600,
-        }
-    });
-    */
-    /*
-    {
-        let i = 33;
-        let j = 33;
-        let k = 33;
-        let chunk_entity = commands.spawn(Chunk {
-            position: Position{
-                x: (i as isize - 32) as i32,
-                y: (j as isize - 32) as i32,
-                z: (k as isize - 32) as i32,
-            }
-        }).id();   
-
-
-        let cube = commands.spawn(( 
-            PbrBundle {
-                mesh: meshes.add(Cuboid::new(0.25, 0.25, 0.25)),
-                transform: Transform::from_xyz(
-                    i as f32 - 32.0,
-                    j as f32 - 32.0,
-                    k as f32 - 32.0,
-                    ),
-                material: materials.add(Color::WHITE),
-                ..default()
-            },  )).id();
-        //commands.entity(chunk_entity).push_children(&[cube]);
-
-
-    }
-    
-    commands.spawn(Chunk {
-        position: Position{
-            x: 1,
-            y: 1,
-            z: 1,
-        }
-    });
-    */
-    let perlin = Perlin::new(1);
-    let scale = 0.2;
-    // debug ==> spawns a random chunk 
-    let mut voxel: [[[bool; 16]; 16]; 16] = [[[false; 16]; 16]; 16];
-    for i in 0..16 {
-        for j in 0..16 {
-            for k in 0..16 { 
-                let val = perlin.get([i as f64 * scale, j as f64 * scale, k as f64 * scale]);
-                voxel[i][j][k] = val >= 0.0; 
-            }
-        }
-    }
-    //spawn_cubes(voxel, [0.0,0.0,0.0], commands, meshes, materials);
 } 
 
-
-/*
-fn spawn_cubes(voxels: [[[bool; 16]; 16]; 16], position: [f32; 3], mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
-    let chunk_entity = commands.spawn((
-        Chunk {
-            position: Vec3::new(position[0], position[1], position[2]),
-        },
-        SpatialBundle {..default()}
-    )).id();
- 
-    for i in 0..15 {
-        for j in 0..15 {
-            for k in 0..15 {
-                if voxels[i][j][k] == true {
-                    let cube = commands.spawn(( 
-                            PbrBundle {
-                                mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-                                transform: Transform::from_xyz(
-                                    i as f32 + position[0] - 7.0,
-                                    j as f32 + position[1] - 7.0,
-                                    k as f32 + position[2] - 7.0,
-                                    ),
-                                material: materials.add(Color::WHITE),
-                                ..default()
-                            }, Cube, )).id();
-                    commands.entity(chunk_entity).push_children(&[cube]);
-                };
-            }
-        }
-    }
-}
-*/

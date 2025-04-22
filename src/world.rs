@@ -1,13 +1,11 @@
 use bevy::prelude::*;
-use pixelate_mesh::prelude::*;
+use avian3d::prelude::*;
 
-use crate::MainCamera;
 
-use crate::chunk::{generate_chunk, generate_chunk_mesh, generate_chunk_data};
+use crate::chunk::{generate_chunk, generate_chunk_mesh};
 
 pub fn world_plugin(app: &mut App) {
     app.add_systems(Update, render_chunks);
-    app.add_plugins(PixelateMeshPlugin::<MainCamera>::default());
 }
 #[derive(Component)]
 pub struct Chunk{
@@ -24,17 +22,22 @@ pub struct Position {
 pub struct Player;
 
 
+
 fn render_chunks(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>, 
     mut materials: ResMut<Assets<StandardMaterial>>,        
     player_query: Query<&Transform, With<Player>>,
     chunk_query: Query<(Entity, &Chunk)>,
+    asset_server: Res<AssetServer>,
     ) {
 
+    // Define texture atlas
+    let texture_atlas = asset_server.load("textures/Sprite-Mini-Spritesheat.png");
+
     // Define Immutable
-    const RENDER_DISTANCE: u32 = 4;                         // distance of 4 around the player 
-    const RENDER_DISTANCE_HALF: u32 = RENDER_DISTANCE /2;    // half render distance
+    const RENDER_DISTANCE: u32 = 15;                         // distance of 4 around the player 
+    const RENDER_DISTANCE_HALF: u32 = RENDER_DISTANCE / 2;    // half render distance
     //const RENDER_RANGE: u32 = (2 * RENDER_DISTANCE) + 1;    // 9 x 9 grid
     const ARRAY_LENGTH: u32 = 65;                           // 33 x 33 chunk grid
     const ARRAY_HALF: i32 = 32; 
@@ -82,7 +85,13 @@ fn render_chunks(
         }
     }
     let cube_mesh_handle = meshes.add(Cuboid::new(15.9, 1.0, 15.9));
-    let material_handle = materials.add(Color::WHITE);
+    let material_handle = materials.add(StandardMaterial {
+        base_color_texture: Some(texture_atlas.clone()),
+        ..default()
+    });
+
+    let chunks_to_load: u32 = 10;
+    let mut chunks_loading: u32 = 0;
 
     // spawn chunk if necassary
     for i in 0..ARRAY_LENGTH {
@@ -91,73 +100,50 @@ fn render_chunks(
                 //println!("{}, {}", chunks_should_exist[i as usize][j as usize][k as usize], chunks_does_exist[i as usize][j as usize][k as usize]);
                 if chunks_should_exist[i as usize][j as usize][k as usize] && !chunks_does_exist[i as usize][j as usize][k as usize] {
                     //println!("{}, {}, {}", i as f32 - 32.0, j as f32 - 32.0, k as f32 - 32.0);
-                    let chunk_entity = commands
-                        .spawn((
-                            Chunk {
-                                position: Position {
-                                    x: (i as isize - 32) as i32,
-                                    y: (j as isize - 32) as i32,
-                                    z: (k as isize - 32) as i32,
-                                }
-                            },
-                            SpatialBundle {
-                                transform: Transform::from_translation(Vec3::new(
-                                    (i as f32 - 32.0) * 1.0,
-                                    (j as f32 - 32.0) * 1.0,
-                                    (k as f32 - 32.0) * 1.0,
-                                )),
-                                ..Default::default()
-                            }
-                        ))
-                    .id();
+                    if chunks_loading <= chunks_to_load {
+                        let chunk_entity = commands
+                            .spawn((
+                                Chunk {
+                                    position: Position {
+                                        x: (i as isize - 32) as i32,
+                                        y: (j as isize - 32) as i32,
+                                        z: (k as isize - 32) as i32,
+                                    }
+                                },
+                                Transform::from_translation(Vec3::new(
+                                        (i as f32 - 32.0) * 16.0,
+                                        (j as f32 - 32.0) * 16.0,
+                                        (k as f32 - 32.0) * 16.0,
+                                    )),
+                                Visibility::default(),
+                                ))
+                        .id();
 
+                        let chunk_data = generate_chunk(Position{x: i as i32 - 32, y: j as i32 - 32, z: k as i32 - 32});
 
-                    //println!("{}, {}, {}", (i as isize - 32) as i32, (j as isize -32) as i32, (k as isize -32) as i32);
-                    //println!("{}, {}, {}", i as f32 - 32.0, j as f32 - 32.0, k as f32 - 32.0);
+                        let chunk_mesh = generate_chunk_mesh(chunk_data);
 
+                        if chunk_mesh.1 {
+                            let chunk = commands.spawn(( 
+                                Mesh3d(meshes.add(chunk_mesh.0.clone())),
+                                MeshMaterial3d(material_handle.clone()),
+                                Transform::default(),
+                                GlobalTransform::default(),
+                                Visibility::default(),
+                                RigidBody::Static,
+                                Collider::trimesh_from_mesh(&chunk_mesh.0.clone()).unwrap(),
+                            )).id();
+                            commands.entity(chunk_entity).add_children(&[chunk]);
 
-                    let cube = commands.spawn(( 
-                        PbrBundle {
-                            mesh: meshes.add(generate_chunk_mesh(generate_chunk(Position{x: i as i32 - 32, y: j as i32 - 32, z: k as i32 - 32}))), 
-                            //mesh: meshes.add(generate_chunk_mesh(temp)),
-                            transform: Transform::from_xyz(
-                                (i as f32 - 32.0) * 15.0 - (RENDER_DISTANCE_HALF as f32 * 15.0), 
-                                (j as f32 - 32.0) * 15.0 - (RENDER_DISTANCE_HALF as f32 * 15.0),
-                                (k as f32 - 32.0) * 15.0 - (RENDER_DISTANCE_HALF as f32 * 15.0),
-                                ),
-                            material: material_handle.clone(),
-                            ..default()
-                        }, )).id();
-                    commands.entity(chunk_entity).push_children(&[cube]);
-                    
-
-
+                        }
+                        chunks_loading += 1;
+                    }
+                    else {
+                        break
+                    }
                 }
             }
         }
     }
 }
 
-
-/*
-                        let chunk_entity = commands.spawn(Chunk {
-                            position: Position{
-                                x: (i as isize - offset) as i32,
-                                y: (j as isize - offset) as i32,
-                                z: (k as isize - offset) as i32,
-                            }
-                        }).id();   
-
-                        let cube = commands.spawn(( 
-                            PbrBundle {
-                                mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-                                transform: Transform::from_xyz(
-                                    i as f32 * 16.0,
-                                    j as f32 * 16.0,
-                                    k as f32 * 16.0,
-                                    ),
-                                material: materials.add(Color::WHITE),
-                                ..default()
-                            },  )).id();
-                        commands.entity(chunk_entity).push_children(&[cube]);
-*/
