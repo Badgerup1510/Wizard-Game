@@ -27,7 +27,7 @@ fn main() {
                 chunk_plugin,
                 PlayerCharacterPlugin,
                 ))
-        //.insert_resource(Gravity(Vec3::NEG_Y * 0.0))
+        .insert_resource(Gravity(Vec3::NEG_Y * 0.0))
         .add_systems(Startup, setup)
         .run();
 }

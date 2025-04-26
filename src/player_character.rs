@@ -75,7 +75,7 @@ fn toggle_grab_cursor(window: &mut Window) {
 }
 
 pub fn spawn_view_model(
-    mut commands: Commands,
+mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -158,17 +158,6 @@ pub fn spawn_view_model(
         Collider::cuboid(1.0, 1.0, 1.0),
         RigidBody::Dynamic,
     ));
-
-    /*
-    commands.spawn((
-        Mesh3d(meshes.add(Circle::new(4.0))),
-        MeshMaterial3d(materials.add(Color::WHITE)),
-        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_translation(Vec3::new(0.0, -4.0, 0.0)),
-        RigidBody::Static,
-        Collider::cylinder(8.0, 1.0),
-        //Collider::cuboid(0.8,1.6,0.8),
-    ));
-    */
 }
 
 fn escape_handle(
@@ -221,7 +210,7 @@ fn rotate_player(
     }
 }
 
-const MOVE_SPEED: f32 = 5.0;
+const MOVE_SPEED: f32 = 1.0;
 const DECCELERATION_PERCENT: f32 = 0.9;
 
 fn move_player(
@@ -239,46 +228,61 @@ fn move_player(
 
     velocity.x *= DECCELERATION_PERCENT;
     velocity.z *= DECCELERATION_PERCENT;
-    //velocity.y *= DECCELERATION_PERCENT / 2.0;
-    //velocity.y -= 2.0;
+    velocity.y *= DECCELERATION_PERCENT;
+
+    velocity.y -= 2.0;
     
     let forward = transform.forward();
-    let horizontal = Vec2::new(forward.x, forward.z).normalize_or(Vec2::new(1.0, 0.0));
+    //let horizontal = Vec2::new(forward.x, forward.z).normalize_or(Vec2::new(1.0, 0.0));
+    let forward_2d = Vec2::new(forward.x, forward.z).normalize_or(Vec2::X);
+    let right_2d = Vec2::new(forward_2d.y, -forward.x);
 
-    /*
-    let max_distance = 10.0;
+
+    let max_distance = 2.0;
     let solid = true;
     let filter = SpatialQueryFilter::default();
     if let Some(first_hit) = spatial_query.cast_ray(transform.translation, Dir3::NEG_Y, max_distance, solid, &filter) {
-        println!("First hit: {:?}", first_hit);
+        //println!("First hit: {:?}", first_hit);
     }
-    */
+
+    let mut velocity_buffer: Vec2 = Vec2::ZERO;
 
     if keys.pressed(KeyCode::KeyW) {
-        velocity.x = MOVE_SPEED * horizontal.x;
-        velocity.z = MOVE_SPEED * horizontal.y;
+        velocity_buffer += forward_2d;
+        //velocity.x = MOVE_SPEED * horizontal.x;
+        //velocity.z = MOVE_SPEED * horizontal.y;
     }
     if keys.pressed(KeyCode::KeyD) {
-        velocity.x = -MOVE_SPEED * horizontal.y;
-        velocity.z = MOVE_SPEED * horizontal.x;
+        velocity_buffer -= right_2d;
+        //velocity.x = -MOVE_SPEED * horizontal.y;
+        //velocity.z = MOVE_SPEED * horizontal.x;
     }
     if keys.pressed(KeyCode::KeyS) {
-        velocity.x = -MOVE_SPEED * horizontal.x;
-        velocity.z = -MOVE_SPEED * horizontal.y;
+        velocity_buffer -= forward_2d;
+        //velocity.x = -MOVE_SPEED * horizontal.x;
+        //velocity.z = -MOVE_SPEED * horizontal.y;
     }
     if keys.pressed(KeyCode::KeyA) {
-        velocity.x = MOVE_SPEED * horizontal.y;
-        velocity.z = -MOVE_SPEED * horizontal.x;
+        velocity_buffer += right_2d;
+        //velocity.x = MOVE_SPEED * horizontal.y;
+        //velocity.z = -MOVE_SPEED * horizontal.x;
     }
     if keys.just_pressed(KeyCode::Space) {
-        velocity.y = MOVE_SPEED * 1.0;
+        velocity.y += MOVE_SPEED * 30.0;
     }
-    if keys.pressed(KeyCode::ShiftLeft) {
-        velocity.y = -MOVE_SPEED;
-    }
+    //if keys.pressed(KeyCode::ShiftLeft) {
+    //    velocity.y = -10.0 * MOVE_SPEED;
+    //}
     if keys.pressed(KeyCode::ArrowRight) {
         velocity.x = MOVE_SPEED;
     }
+    if velocity_buffer.length_squared() > 0.0 {
+        let move_dir = velocity_buffer.normalize();
+        velocity.x += move_dir.x * MOVE_SPEED;
+        velocity.z += move_dir.y * MOVE_SPEED;
+    }
+    //velocity.x = MOVE_SPEED * velocity_buffer.x;
+    //velocity.z = MOVE_SPEED * velocity_buffer.y;
 }
 
 fn player_interaction(
@@ -286,6 +290,9 @@ fn player_interaction(
     player: Query<(&Transform, Entity), With<Player>>,
     camera: Query<&Transform, With<WorldModelCamera>>,
     spatial_query: SpatialQuery,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let Ok((player_transform, player_entity)) = player.get_single() else {
         return
@@ -300,25 +307,57 @@ fn player_interaction(
     if let Some(ray_hit) = spatial_query.cast_ray(player_transform.translation, vec_forward, 10.0, true, &SpatialQueryFilter::default().with_excluded_entities([player_entity])) {
         //println!("Exluding {}, hit {}, at {}", player_entity, ray_hit.entity, ray_hit.distance);
         if buttons.just_pressed(MouseButton::Left) {
-            println!("left mouse click");
+            println!("left mouse click at {:?}, looking at: {:?}", cube_from_ray_data(player_transform.translation, Some(vec_forward), ray_hit.distance + 0.1), vec_forward);
+            commands.spawn((
+                Mesh3d(meshes.add(Sphere::new(0.1))),
+                MeshMaterial3d(materials.add(Color::WHITE)),
+                Transform::from_translation(player_transform.translation + (ray_hit.distance * Vec3::from(vec_forward)))
+            ));
         }
 
     }
 
 }
 
-/*
 fn cube_from_ray_data(
     transform: Vec3,
-    direction: Dir3,
-    ray_hit: RayHitData,
-) -> (u32,u32) {
-
+    direction: Option<Dir3>,
+    distance: f32,
+) -> (i32, i32, i32) {
+    let dir = direction.unwrap_or(Dir3::X);
+    let hit_location = transform + (distance * Vec3::from(dir));
+    (hit_location.x as i32, hit_location.y as i32, hit_location.z as i32)
 }
 
+/*
 fn chunk_from_translation(
     translation: Vec3,
 ) -> (u32, u32) {
 
 }
 */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chunk_from_translation() {
+        let transform = Vec3::ZERO;
+        let direction: Option<Dir3> = Some(Dir3::X);
+        let distance = 1.0;
+        let result = cube_from_ray_data(transform, direction, distance);
+        assert_eq!(result, (1, 0, 0));
+        let transform1 = Vec3::ZERO;
+        let direction1: Option<Dir3> = Some(Dir3::Y);
+        let distance1 = 1.45;
+        let result1 = cube_from_ray_data(transform1, direction1, distance1);
+        assert_eq!(result1, (0, 1, 0));
+        let transform2 = Vec3::ZERO;
+        let direction2: Option<Dir3> = Some(Dir3::Y);
+        let distance2 = 1.55;
+        let result2 = cube_from_ray_data(transform2, direction2, distance2);
+        assert_eq!(result2, (0, 2, 0));
+
+    }
+}

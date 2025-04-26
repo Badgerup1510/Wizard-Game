@@ -5,6 +5,8 @@ use bevy::render::{
     render_resource::PrimitiveTopology,
 };
 use perlin2d::PerlinNoise2D;
+use std::time::Instant;
+
 
 // Import the Position struct from world.rs
 use crate::world::Position;
@@ -13,9 +15,21 @@ pub fn chunk_plugin(app: &mut App) {
     //app.add_systems(Startup, chunk_startup);
 }
 
+pub const CHUNK_SIZE: u32 = 16;
+
+#[derive(PartialEq,  Clone, Copy)]
 pub enum BlockType {
+    Air,
     Grass,
     Stone,
+}
+
+#[derive(Component)]
+pub struct GameChunk {
+    pub position: Position,
+    pub data: [[[BlockType; 16]; 16]; 16],
+    pub data_loaded: bool,
+    pub mesh_loaded: bool,
 }
 
 pub fn generate_chunk_data(position: Position) -> [[[bool; 16]; 16]; 16] {
@@ -53,6 +67,87 @@ pub fn generate_chunk_data(position: Position) -> [[[bool; 16]; 16]; 16] {
 
     // return chunk
     chunk
+}
+
+fn generate_chunk_data_new(position: Position) -> [[[BlockType; CHUNK_SIZE as usize]; CHUNK_SIZE as usize]; CHUNK_SIZE as usize] {
+    let mut chunk = [[[BlockType::Air; CHUNK_SIZE as usize]; CHUNK_SIZE as usize]; CHUNK_SIZE as usize];
+
+    const HEIGHT_ADDITION: i32 = 90;
+
+    // perlin noise parameters
+    let octaves: i32 = 4; // detail
+    let amplitude: f64 = 90.0; // the absolute output value 
+    let frequency: f64 = 0.3; //cycles per unit length ???
+    let persistence: f64 = 1.0; // determines how the amplitude diminishes
+    let lacunarity: f64 = 2.0; // determines frequency increses of octaves
+    let scale: (f64, f64) = (100.0, 100.0); // a distance to view the noise map ???
+    let bias: f64 = 10.0; // Used to make output positive
+    let seed: i32 = 100; // changes the output
+
+    let perlin = PerlinNoise2D::new(octaves, amplitude, frequency, persistence, lacunarity, scale, bias, seed);
+
+    for i in 0..CHUNK_SIZE {
+        for k in 0..CHUNK_SIZE {
+            let val = perlin.get_noise((position.x*CHUNK_SIZE as i32) as f64 + i as f64, (position.z*CHUNK_SIZE as i32) as f64 + k as f64).floor() as i32 + HEIGHT_ADDITION;
+            let mut height_reached = false;
+
+            let mut j = 0;
+            while j < CHUNK_SIZE && !height_reached {
+                let pos = position.y * CHUNK_SIZE as i32 + j as i32;
+                if pos < val {
+                    chunk[i as usize][j as usize][k as usize] = BlockType::Stone;
+                }
+                else if pos == val {
+                    chunk[i as usize][j as usize][k as usize] = BlockType::Grass;
+                }
+                else {
+                    height_reached = true;
+                }
+                j += 1;
+            }
+
+        }
+    }
+
+    chunk
+}
+
+/*
+pub fn load_chunk_data(
+    position: Position,
+    chunk_query: &mut Query<&mut GameChunk>,
+) -> [[[BlockType; CHUNK_SIZE as usize]; CHUNK_SIZE as usize]; CHUNK_SIZE as usize] {
+    let mut chunk_data = [[[BlockType::Air; CHUNK_SIZE as usize]; CHUNK_SIZE as usize]; CHUNK_SIZE as usize];
+    for mut chunk in chunk_query.iter_mut() {
+        if chunk.position == position && chunk.data_loaded {
+            chunk_data = chunk.data;
+        }
+        else {
+            chunk_data = generate_chunk_data_new(position);
+            chunk.data_loaded = true
+        }
+    }
+
+    chunk_data
+
+} 
+*/
+pub fn load_chunk_data(
+    position: Position,
+    chunk_query: &mut Query<&mut GameChunk>,
+) -> [[[BlockType; CHUNK_SIZE as usize]; CHUNK_SIZE as usize]; CHUNK_SIZE as usize] {
+    for mut chunk in chunk_query.iter_mut() {
+        if chunk.position == position {
+            if !chunk.data_loaded {
+                chunk.data = generate_chunk_data_new(position);
+                chunk.data_loaded = true;
+            }
+            return chunk.data;
+        }
+    }
+
+    // Fallback in case no chunk was found — this shouldn't happen normally.
+    generate_chunk_data_new(position)
 }
 
 pub fn generate_chunk(position: Position)
@@ -97,6 +192,88 @@ pub fn generate_chunk(position: Position)
     let chunk_020 = generate_chunk_data(Position{x: m_x - 1, y: m_y + 1, z: m_z - 1});
     let chunk_002 = generate_chunk_data(Position{x: m_x - 1, y: m_y - 1, z: m_z + 1});
     let chunk_000 = generate_chunk_data(Position{x: m_x - 1, y: m_y - 1, z: m_z - 1});
+
+    for a in 0..=15 {
+        for b in 0..=15 {
+            for c in 0..=15 {
+                chunk[a][b][c] = chunk_000[a][b][c];
+                chunk[a][b][c + 16] = chunk_001[a][b][c];
+                chunk[a][b][c + 32] = chunk_002[a][b][c];
+                chunk[a][b + 16][c] = chunk_010[a][b][c];
+                chunk[a][b + 16][c + 16] = chunk_011[a][b][c];
+                chunk[a][b + 16][c + 32] = chunk_012[a][b][c];
+                chunk[a][b + 32][c] = chunk_020[a][b][c];
+                chunk[a][b + 32][c + 16] = chunk_021[a][b][c];
+                chunk[a][b + 32][c + 32] = chunk_022[a][b][c];
+                chunk[a + 16][b][c] = chunk_100[a][b][c];
+                chunk[a + 16][b][c + 16] = chunk_101[a][b][c];
+                chunk[a + 16][b][c + 32] = chunk_102[a][b][c];
+                chunk[a + 16][b + 16][c] = chunk_110[a][b][c];
+                chunk[a + 16][b + 16][c + 16] = chunk_111[a][b][c];
+                chunk[a + 16][b + 16][c + 32] = chunk_112[a][b][c];
+                chunk[a + 16][b + 32][c] = chunk_120[a][b][c];
+                chunk[a + 16][b + 32][c + 16] = chunk_121[a][b][c];
+                chunk[a + 16][b + 32][c + 32] = chunk_122[a][b][c];
+                chunk[a + 32][b][c] = chunk_200[a][b][c];
+                chunk[a + 32][b][c + 16] = chunk_201[a][b][c];
+                chunk[a + 32][b][c + 32] = chunk_202[a][b][c];
+                chunk[a + 32][b + 16][c] = chunk_210[a][b][c];
+                chunk[a + 32][b + 16][c + 16] = chunk_211[a][b][c];
+                chunk[a + 32][b + 16][c + 32] = chunk_212[a][b][c];
+                chunk[a + 32][b + 32][c] = chunk_220[a][b][c];
+                chunk[a + 32][b + 32][c + 16] = chunk_221[a][b][c];
+                chunk[a + 32][b + 32][c + 32] = chunk_222[a][b][c];
+            }
+        }
+    }
+
+    chunk
+}
+
+pub fn generate_chunk_new(
+    position: Position,
+    chunk_query: &mut Query<&mut GameChunk>,
+) -> [[[BlockType; 3*CHUNK_SIZE as usize]; 3*CHUNK_SIZE as usize]; 3*CHUNK_SIZE as usize] {
+    let m_x = position.x;
+    let m_y = position.y;
+    let m_z = position.z;
+
+    // Define chunks
+    let mut chunk: [[[BlockType; 3*CHUNK_SIZE as usize]; 3*CHUNK_SIZE as usize]; 3*CHUNK_SIZE as usize] = [[[BlockType::Air; 3*CHUNK_SIZE as usize]; 3*CHUNK_SIZE as usize]; 3*CHUNK_SIZE as usize];
+
+    let chunk_111 = load_chunk_data(position, chunk_query);
+    let chunk_121 = load_chunk_data(Position{x: m_x, y: m_y + 1, z: m_z}, chunk_query);
+    let chunk_101 = load_chunk_data(Position{x: m_x, y: m_y - 1, z: m_z}, chunk_query);
+    let chunk_211 = load_chunk_data(Position{x: m_x + 1, y: m_y, z: m_z}, chunk_query);
+    let chunk_011 = load_chunk_data(Position{x: m_x - 1, y: m_y, z: m_z}, chunk_query);
+    let chunk_112 = load_chunk_data(Position{x: m_x, y: m_y, z: m_z + 1}, chunk_query);
+    let chunk_110 = load_chunk_data(Position{x: m_x, y: m_y, z: m_z - 1}, chunk_query);
+    // Diagonals
+    // i/j
+    let chunk_221 = load_chunk_data(Position{x: m_x + 1, y: m_y + 1, z: m_z}, chunk_query);// [i + 1][j + 1][k];
+    let chunk_201 = load_chunk_data(Position{x: m_x + 1, y: m_y - 1, z: m_z}, chunk_query);//[i + 1][j - 1][k];
+    let chunk_021 = load_chunk_data(Position{x: m_x - 1, y: m_y + 1, z: m_z}, chunk_query);//[i - 1][j + 1][k];
+    let chunk_001 = load_chunk_data(Position{x: m_x - 1, y: m_y - 1, z: m_z}, chunk_query);//[i - 1][j - 1][k];
+    // k/j
+    let chunk_122 = load_chunk_data(Position{x: m_x, y: m_y + 1, z: m_z + 1}, chunk_query);//[i][j + 1][k + 1];
+    let chunk_102 = load_chunk_data(Position{x: m_x, y: m_y - 1, z: m_z + 1}, chunk_query);//[i][j - 1][k + 1];
+    let chunk_120 = load_chunk_data(Position{x: m_x, y: m_y + 1, z: m_z - 1}, chunk_query);//[i][j + 1][k - 1];
+    let chunk_100 = load_chunk_data(Position{x: m_x, y: m_y - 1, z: m_z - 1}, chunk_query);//[i][j - 1][k - 1];
+    // i/k
+    let chunk_012 = load_chunk_data(Position{x: m_x - 1, y: m_y, z: m_z + 1}, chunk_query);
+    let chunk_010 = load_chunk_data(Position{x: m_x - 1, y: m_y, z: m_z - 1}, chunk_query);
+    let chunk_212 = load_chunk_data(Position{x: m_x + 1, y: m_y, z: m_z + 1}, chunk_query);
+    let chunk_210 = load_chunk_data(Position{x: m_x + 1, y: m_y, z: m_z - 1}, chunk_query);
+
+    // corners
+    let chunk_222 = load_chunk_data(Position{x: m_x + 1, y: m_y + 1, z: m_z + 1}, chunk_query);
+    let chunk_220 = load_chunk_data(Position{x: m_x + 1, y: m_y + 1, z: m_z - 1}, chunk_query);
+    let chunk_202 = load_chunk_data(Position{x: m_x + 1, y: m_y - 1, z: m_z + 1}, chunk_query);
+    let chunk_200 = load_chunk_data(Position{x: m_x + 1, y: m_y - 1, z: m_z - 1}, chunk_query);
+    let chunk_022 = load_chunk_data(Position{x: m_x - 1, y: m_y + 1, z: m_z + 1}, chunk_query);
+    let chunk_020 = load_chunk_data(Position{x: m_x - 1, y: m_y + 1, z: m_z - 1}, chunk_query);
+    let chunk_002 = load_chunk_data(Position{x: m_x - 1, y: m_y - 1, z: m_z + 1}, chunk_query);
+    let chunk_000 = load_chunk_data(Position{x: m_x - 1, y: m_y - 1, z: m_z - 1}, chunk_query);
 
     for a in 0..=15 {
         for b in 0..=15 {
@@ -357,21 +534,240 @@ pub fn generate_chunk_mesh(chunk: [[[bool; 48]; 48]; 48]) -> (Mesh, bool) {
     (mesh, result)
 }
 
+pub fn generate_chunk_mesh_new(
+    chunk: [[[BlockType; 3*CHUNK_SIZE as usize]; 3*CHUNK_SIZE as usize]; 3*CHUNK_SIZE as usize]
+) -> (Mesh, bool) {
+    // init empty triangle list mesh
+    
+    // define mesh attribute vectors
+    let mut atr_pos: Vec<[f32; 3]> = vec![];
+    let mut atr_uv: Vec<[f32; 2]> = vec![];
+    let mut atr_norm: Vec<[f32; 3]> = vec![];
+    let mut indices: Vec<u32> = vec![];
+
+    let mut indices_counter = 0;
+
+    // loop through each position in chunk
+    for mut i in 15..31 {
+        for mut j in 15..31 {
+            for mut k in 15..31 {
+                // if current cube exists
+                //print!("[{}, {}, {}]", i, j, k);
+                
+
+                if chunk[i][j][k] != BlockType::Air{
+                    // define other cubes                // normals
+                    let cube_right = chunk[i + 1][j][k] == BlockType::Air; // [1, 0, 0]
+                    let cube_left  = chunk[i - 1][j][k] == BlockType::Air; // [-1, 0, 0]
+                    let cube_above = chunk[i][j + 1][k] == BlockType::Air; // [0, 1, 0]
+                    let cube_below = chunk[i][j - 1][k] == BlockType::Air; // [0, -1, 0]
+                    let cube_front = chunk[i][j][k + 1] == BlockType::Air; // [0, 0, 1]
+                    let cube_hind  = chunk[i][j][k - 1] == BlockType::Air; // [0, 0, -1]
+
+
+
+                    let v0_0_0: [f32; 3] = [(i as f32), (j as f32), (k as f32)];
+                    let v0_0_1: [f32; 3] = [(i as f32), (j as f32), (k as f32 + 1.0)];
+                    let v0_1_0: [f32; 3] = [(i as f32), (j as f32 + 1.0), (k as f32)];
+                    let v0_1_1: [f32; 3] = [(i as f32), (j as f32 + 1.0), (k as f32 + 1.0)];
+                    let v1_0_0: [f32; 3] = [(i as f32 + 1.0), (j as f32), (k as f32)];
+                    let v1_0_1: [f32; 3] = [(i as f32 + 1.0), (j as f32), (k as f32 + 1.0)];
+                    let v1_1_0: [f32; 3] = [(i as f32 + 1.0), (j as f32 + 1.0), (k as f32)];
+                    let v1_1_1: [f32; 3] = [(i as f32 + 1.0), (j as f32 + 1.0), (k as f32 + 1.0)];
+
+                    // check each touching face
+                    if cube_below {
+                        atr_pos.push(v0_0_1);
+                        atr_pos.push(v0_0_0);
+                        atr_pos.push(v1_0_0);
+                        atr_pos.push(v1_0_1);
+                        
+                        atr_uv.extend(uv_from_block_type(chunk[i][j][k]));
+
+
+                        atr_norm.push([0.0, -1.0, 0.0]);
+                        atr_norm.push([0.0, -1.0, 0.0]);
+                        atr_norm.push([0.0, -1.0, 0.0]);
+                        atr_norm.push([0.0, -1.0, 0.0]);
+
+                        indices.push(indices_counter);
+                        indices.push(indices_counter + 1);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 3);
+                        indices.push(indices_counter);
+
+                        indices_counter += 4;
+                    }
+                    if cube_above {
+                        // i/k plane 
+                        atr_pos.push(v1_1_1); //111
+                        atr_pos.push(v1_1_0); //110
+                        atr_pos.push(v0_1_0); //010
+                        atr_pos.push(v0_1_1); //011
+
+                        atr_uv.extend(uv_from_block_type(chunk[i][j][k]));
+
+                        atr_norm.push([0.0, 1.0, 0.0]);
+                        atr_norm.push([0.0, 1.0, 0.0]);
+                        atr_norm.push([0.0, 1.0, 0.0]);
+                        atr_norm.push([0.0, 1.0, 0.0]);
+
+                        indices.push(indices_counter);
+                        indices.push(indices_counter + 1);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 3);
+                        indices.push(indices_counter);
+
+                        indices_counter += 4;
+
+                    } 
+                    if cube_right {
+                        atr_pos.push(v1_1_1); 
+                        atr_pos.push(v1_0_1); 
+                        atr_pos.push(v1_0_0); 
+                        atr_pos.push(v1_1_0);
+
+                        atr_uv.extend(uv_from_block_type(chunk[i][j][k]));
+
+
+                        atr_norm.push([1.0, 0.0, 0.0]);
+                        atr_norm.push([1.0, 0.0, 0.0]);
+                        atr_norm.push([1.0, 0.0, 0.0]);
+                        atr_norm.push([1.0, 0.0, 0.0]);
+
+                        indices.push(indices_counter);
+                        indices.push(indices_counter + 1);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 3);
+                        indices.push(indices_counter);
+
+                        indices_counter += 4;
+
+                    }
+                    if cube_left {
+                        atr_pos.push(v0_1_0); 
+                        atr_pos.push(v0_0_0); 
+                        atr_pos.push(v0_0_1); 
+                        atr_pos.push(v0_1_1);
+
+                        atr_uv.extend(uv_from_block_type(chunk[i][j][k]));
+
+
+                        atr_norm.push([-1.0, 0.0, 0.0]);
+                        atr_norm.push([-1.0, 0.0, 0.0]);
+                        atr_norm.push([-1.0, 0.0, 0.0]);
+                        atr_norm.push([-1.0, 0.0, 0.0]);
+
+                        indices.push(indices_counter);
+                        indices.push(indices_counter + 1);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 3);
+                        indices.push(indices_counter);
+
+                        indices_counter += 4;
+
+                    }
+                    if cube_front {
+                        atr_pos.push(v0_1_1); 
+                        atr_pos.push(v0_0_1); 
+                        atr_pos.push(v1_0_1); 
+                        atr_pos.push(v1_1_1);
+
+                        atr_uv.extend(uv_from_block_type(chunk[i][j][k]));
+
+
+                        atr_norm.push([0.0, 0.0, 1.0]);
+                        atr_norm.push([0.0, 0.0, 1.0]);
+                        atr_norm.push([0.0, 0.0, 1.0]);
+                        atr_norm.push([0.0, 0.0, 1.0]);
+
+                        indices.push(indices_counter);
+                        indices.push(indices_counter + 1);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 3);
+                        indices.push(indices_counter);
+
+                        indices_counter += 4;
+                    }
+
+                    if cube_hind {
+                        atr_pos.push(v1_1_0); 
+                        atr_pos.push(v1_0_0); 
+                        atr_pos.push(v0_0_0); 
+                        atr_pos.push(v0_1_0);
+
+                        atr_uv.extend(uv_from_block_type(chunk[i][j][k]));
+
+
+                        atr_norm.push([0.0, 0.0, -1.0]);
+                        atr_norm.push([0.0, 0.0, -1.0]);
+                        atr_norm.push([0.0, 0.0, -1.0]);
+                        atr_norm.push([0.0, 0.0, -1.0]);
+
+                        indices.push(indices_counter);
+                        indices.push(indices_counter + 1);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 2);
+                        indices.push(indices_counter + 3);
+                        indices.push(indices_counter);
+
+                        indices_counter += 4;
+                    }
+                }
+            }
+        }
+    }
+
+
+    // Create a new mesh using a triangle list topology, where each set of 3 vertices composes a triangle.
+    let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
+        // Add 4 vertices, each with its own position attribute (coordinate in
+        // 3D space), for each of the corners of the parallelogram.
+        .with_inserted_attribute(
+            Mesh::ATTRIBUTE_POSITION,
+            atr_pos
+        )
+        // Assign a UV coordinate to each vertex.
+        .with_inserted_attribute(
+            Mesh::ATTRIBUTE_UV_0,
+            atr_uv
+        )
+        // Assign normals (everything points outwards)
+        .with_inserted_attribute(
+            Mesh::ATTRIBUTE_NORMAL,
+            atr_norm
+        )
+        // After defining all the vertices and their attributes, build each triangle using the
+        // indices of the vertices that make it up in a counter-clockwise order.
+        .with_inserted_indices(Indices::U32(indices));
+    let result = indices_counter != 0;
+
+    (mesh, result)
+
+}
+
 fn uv_from_block_type(
     block_type: BlockType,
 ) -> Vec<[f32; 2]> {
     match block_type {
         BlockType::Grass => {
             vec![[0.51, 1.0], [0.51, 0.0], [1.0, 0.0], [1.0, 1.0]]
-}
+        }
         BlockType::Stone => {
             vec![[0.0, 1.0], [0.0, 0.0], [0.49, 0.0], [0.49, 1.0]]
+        }
+        _ => {
+            vec![[0.51, 1.0], [0.51, 0.0], [1.0, 0.0], [1.0, 1.0]]
 
-}
+        }
+
     }
-
 }
-
 
 /*
 fn create_simple_parallelogram() -> Mesh {
